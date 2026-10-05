@@ -263,13 +263,17 @@
 
                   <div class="row g-4 mt-1">
                     <div class="col-lg-5">
-                      <div class="task-form content-panel">
+                      <form class="task-form content-panel">
                         <h4><i class="fa-solid fa-folder-open"></i> Pengumpulan LKM Flowchart</h4>
-                        <p>Unggah file LKM Flowchart ke folder pengumpulan Google Drive.</p>
-                        <a class="btn btn-dark w-100 mt-3" href="https://drive.google.com/drive/folders/1JhuDF2peLGlQ36yoTzaCdpV55Mer7QOE?usp=drive_link" target="_blank" rel="noopener noreferrer">
-                          <i class="fa-solid fa-cloud-arrow-up me-2"></i>Buka Folder Pengumpulan
-                        </a>
-                      </div>
+                        <p>Unggah jawaban LKM dalam format PDF, DOC, atau DOCX.</p>
+                        <label class="file-picker">
+                          <input type="file" accept=".pdf,.doc,.docx" required />
+                          <i class="fa-solid fa-cloud-arrow-up"></i>
+                          <span>Pilih file jawaban</span>
+                          <small>Belum ada file dipilih</small>
+                        </label>
+                        <button class="btn btn-dark w-100 mt-3" type="submit">Kumpulkan File LKM</button>
+                      </form>
                     </div>
                     <div class="col-lg-7">
                       <form class="reflection-form content-panel">

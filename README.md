@@ -38,11 +38,11 @@ Jika Web App sudah pernah dideploy, pilih **Deploy > Manage deployments**, edit 
 
 ## Pengumpulan LKM ke Google Drive
 
-Formulir LKM sekarang menerima PDF, DOC, dan DOCX hingga 10 MB. Website meminta nama dan kelas sebelum file diunggah, lalu Apps Script memberi nama file berdasarkan materi, nama, kelas, waktu pengiriman, dan nama file asli. Setiap materi langsung disimpan ke folder Google Drive yang sesuai.
+Formulir LKM sekarang menerima PDF, DOC, dan DOCX hingga 10 MB. Website meminta nama dan kelas sebelum file diunggah, lalu Apps Script memberi nama file berdasarkan materi, nama, kelas, waktu pengiriman, dan nama file asli. Setiap materi langsung disimpan ke folder Google Drive yang sesuai; unggahan Materi 6 (Flowchart) masuk ke folder [Pengumpulan LKM Flowchart](https://drive.google.com/drive/folders/1JhuDF2peLGlQ36yoTzaCdpV55Mer7QOE?usp=drive_link).
 
 Setelah mengganti kode `Code.gs` pada Apps Script, jalankan deployment versi baru melalui **Deploy > Manage deployments**. Google akan meminta izin tambahan untuk mengelola Google Drive; setujui izin tersebut hanya bila folder tujuan dan akun pemiliknya memang milik Anda. Pengaturan deployment tetap **Execute as: Me** agar siswa tidak diminta izin Drive.
 
-Jika file belum masuk ke Drive, pilih fungsi **cekAksesFolderLKM** di editor Apps Script lalu klik **Run**. Fungsi ini tidak mengubah file apa pun; fungsinya hanya memeriksa akses ke kelima folder dan memunculkan permintaan izin Google Drive bila masih diperlukan. Setelah berhasil, **Execution log** akan menampilkan nama kelima folder.
+Jika file belum masuk ke Drive, pilih fungsi **cekAksesFolderLKM** di editor Apps Script lalu klik **Run**. Fungsi ini tidak mengubah file apa pun; fungsinya hanya memeriksa akses ke folder-folder LKM dan memunculkan permintaan izin Google Drive bila masih diperlukan. Setelah berhasil, **Execution log** akan menampilkan nama folder-folder tersebut.
 
 Jika tab **Log Pengumpulan LKM** menampilkan error izin `DriveApp.Folder.createFile`, pilih fungsi **aktifkanIzinUploadLKM** lalu klik **Run**. Saat Google meminta izin, pilih akun yang melakukan deployment dan setujui akses Google Drive. Fungsi ini membuat file uji di folder Materi 1 lalu langsung memindahkannya ke Sampah; tidak ada file uji yang tersisa di folder pengumpulan.
 

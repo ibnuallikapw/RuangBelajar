@@ -21,6 +21,7 @@ const LKM_FOLDERS_BY_MATERIAL = {
   3: '1DA7ig1fU26gau2E3hNb467MhzawMKVlR',
   4: '1hKq07NqAIcmD1Cza8Qmk_eIh5XALTfwd',
   5: '17Gmg-CcQ9sZnL_udAmDG4eZ0Vi06U5sb',
+  6: '1JhuDF2peLGlQ36yoTzaCdpV55Mer7QOE',
 };
 const ALLOWED_LKM_MIME_TYPES = {
   pdf: 'application/pdf',
