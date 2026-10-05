@@ -2,7 +2,7 @@
  * Tempel URL Web app Google Apps Script (yang berakhir dengan /exec)
  * setelah menjalankan langkah deployment pada file Code.gs.
  */
-const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyrtXzwqHHnimfRMcs3fPf_uBtogiKkLHMdiyaly0ITdbE-miX6ZlMsniKQG_dvliVM/exec';
+const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby6n0NMBEI-gYvn6lfLzOTuq61cDI8PUFrfRl96-FpyTpNwExyfLt39jnOxj3Xz9f4f/exec';
 const CLASS_OPTIONS = ['10 - TKI', '10 - TFLM', '10 - GP', '10 - TITL', '10 - TBKR'];
 const MAX_LKM_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_LKM_EXTENSIONS = ['pdf', 'doc', 'docx'];
