@@ -5,8 +5,9 @@
 const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby6n0NMBEI-gYvn6lfLzOTuq61cDI8PUFrfRl96-FpyTpNwExyfLt39jnOxj3Xz9f4f/exec';
 const CLASS_OPTIONS = ['10 - TKI', '10 - TFLM', '10 - GP', '10 - TITL', '10 - TBKR'];
 const MAX_LKM_FILE_SIZE = 10 * 1024 * 1024;
-const ALLOWED_LKM_EXTENSIONS = ['pdf', 'doc', 'docx'];
+const ALLOWED_LKM_EXTENSIONS = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'];
 const DCI_STORAGE_KEY = 'ruangbelajar_dci_draft';
+const FLOWCHART_DCI_STORAGE_KEY = 'ruangbelajar_flowchart_dci_draft';
 const DCI_MATERIALS = {
   1: {
     title: 'IPO, Hardware, Software, dan Sistem Operasi',
@@ -356,14 +357,22 @@ document.addEventListener('DOMContentLoaded', () => {
   // Setup Form Pengumpulan File LKM Lama
   document.querySelectorAll('.task-form').forEach((form, index) => {
     const number = index + 1;
+    const description = form.querySelector('p');
+    const fileInput = form.querySelector('.file-picker input[type="file"]');
+    if (description) {
+      description.textContent = 'Unggah jawaban LKM dalam format PDF, DOC, DOCX, JPG, atau PNG (maksimal 10 MB).';
+    }
+    if (fileInput) {
+      fileInput.accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png';
+    }
     const identityFields = `
       <div class="row g-2 mb-3">
         <div class="col-6"><label class="form-label" for="lkm-name-${number}">Nama</label><input class="form-control lkm-name" id="lkm-name-${number}" type="text" placeholder="Nama lengkap" required /></div>
         <div class="col-6"><label class="form-label" for="lkm-class-${number}">Kelas</label><select class="form-select lkm-class" id="lkm-class-${number}" required><option value="" selected disabled>Pilih kelas</option></select></div>
       </div>`;
-    const description = form.querySelector('p');
+    const formDescription = form.querySelector('p');
     const heading = form.querySelector('h4');
-    if (description) description.insertAdjacentHTML('afterend', identityFields);
+    if (formDescription) formDescription.insertAdjacentHTML('afterend', identityFields);
     else if (heading) heading.insertAdjacentHTML('afterend', identityFields);
     else form.insertAdjacentHTML('afterbegin', identityFields);
     const classSelect = form.querySelector('.lkm-class');
@@ -397,7 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const file = fileInput.files[0];
       const extension = file ? file.name.split('.').pop().toLowerCase() : '';
       if (!file || !ALLOWED_LKM_EXTENSIONS.includes(extension)) {
-        showToast('Format file tidak sesuai', 'Unggah file PDF, DOC, atau DOCX.', false);
+        showToast('Format file tidak sesuai', 'Unggah file PDF, DOC, DOCX, JPG, atau PNG.', false);
         return;
       }
       if (file.size > MAX_LKM_FILE_SIZE) {
@@ -609,15 +618,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const studentClass = document.getElementById('dci-student-class').value;
     if (activeMaterialId) saveDciDraft(activeMaterialId);
     activeMaterialId = materialSelect.value;
+    if (activeMaterialId === '6') {
+      localStorage.setItem(DCI_STORAGE_KEY, JSON.stringify({
+        selectedMaterial: activeMaterialId,
+        drafts: dciDrafts,
+      }));
+    }
     renderMaterial(activeMaterialId);
     if (activeMaterialId) restoreDciAnswers(dciDrafts[activeMaterialId] || {});
     if (studentName) document.getElementById('dci-student-name').value = studentName;
     if (studentClass) document.getElementById('dci-student-class').value = studentClass;
+    const savedRoom = Number(dciDrafts[activeMaterialId]?.currentRoom) || 1;
     if (!activeMaterialId) navigateToRoom(1);
-    else saveDciDraft(activeMaterialId);
+    else navigateToRoom(savedRoom);
   });
 
   renderMaterial('');
+
+  document.querySelectorAll('#dci .evidence-card').forEach((card) => {
+    const notes = card.querySelector('.ev-notes');
+    if (notes && !notes.id) notes.id = `ev-notes-${card.dataset.evidence}`;
+  });
 
   const navigateToRoom = (roomNum) => {
     if (roomNum < 1 || roomNum > 8) return;
@@ -762,7 +783,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const saveDciDraft = (materialId = materialSelect.value) => {
     if (!DCI_MATERIALS[materialId]) return;
-    dciDrafts[materialId] = getDciPayload(materialId);
+    dciDrafts[materialId] = {
+      ...getDciPayload(materialId),
+      currentRoom,
+    };
     localStorage.setItem(DCI_STORAGE_KEY, JSON.stringify({
       selectedMaterial: materialId,
       drafts: dciDrafts,
@@ -787,7 +811,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = JSON.parse(raw);
       if (data.drafts && typeof data.drafts === 'object') {
         Object.assign(dciDrafts, data.drafts);
-        activeMaterialId = DCI_MATERIALS[data.selectedMaterial] ? data.selectedMaterial : '';
+        activeMaterialId = DCI_MATERIALS[data.selectedMaterial] || data.selectedMaterial === '6'
+          ? data.selectedMaterial
+          : '';
       } else {
         activeMaterialId = DCI_MATERIALS[data.materialId] ? data.materialId : '1';
         dciDrafts[activeMaterialId] = data;
@@ -795,6 +821,8 @@ document.addEventListener('DOMContentLoaded', () => {
       materialSelect.value = activeMaterialId;
       renderMaterial(activeMaterialId);
       restoreDciAnswers(dciDrafts[activeMaterialId]);
+      currentRoom = Number(dciDrafts[activeMaterialId]?.currentRoom) || 1;
+      navigateToRoom(currentRoom);
     } catch (e) { console.error('Gagal memuat draft DCI', e); }
   };
 
@@ -900,6 +928,66 @@ const fcCases = [
 let selectedFcCase = null;
 let fcNodesData = []; 
 
+function readFlowchartDraft() {
+  const raw = localStorage.getItem(FLOWCHART_DCI_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const draft = JSON.parse(raw);
+    return draft && typeof draft === "object" ? draft : null;
+  } catch (error) {
+    console.error("Gagal membaca draft DCI Flowchart:", error);
+    return null;
+  }
+}
+
+function saveFlowchartDraft() {
+  const nameInput = document.getElementById("fc-nama");
+  if (!nameInput) return;
+
+  const draft = {
+    selectedCaseId: selectedFcCase?.id || null,
+    currentStep: currentFcStep,
+    identity: {
+      nama: nameInput.value,
+      kelas: document.getElementById("fc-kelas").value,
+      kelompok: document.getElementById("fc-kelompok").value,
+      anggota: document.getElementById("fc-anggota").value,
+    },
+    answers: Object.fromEntries(
+      Array.from(document.querySelectorAll("#dci-flowchart-workspace .fc-autosave"), (field) => [field.id, field.value])
+    ),
+    algorithm: Array.from(document.querySelectorAll(".fc-algo-input"), (input) => input.value),
+  };
+
+  try {
+    localStorage.setItem(FLOWCHART_DCI_STORAGE_KEY, JSON.stringify(draft));
+  } catch (error) {
+    console.error("Gagal menyimpan draft DCI Flowchart:", error);
+  }
+}
+
+function restoreFlowchartDraftFields(draft) {
+  if (!draft) return;
+  const identity = draft.identity || {};
+  document.getElementById("fc-nama").value = identity.nama || "";
+  document.getElementById("fc-kelas").value = identity.kelas || "";
+  document.getElementById("fc-kelompok").value = identity.kelompok || "";
+  document.getElementById("fc-anggota").value = identity.anggota || "";
+
+  Object.entries(draft.answers || {}).forEach(([id, value]) => {
+    const field = document.getElementById(id);
+    if (field?.classList.contains("fc-autosave")) field.value = value;
+  });
+
+  const algorithm = Array.isArray(draft.algorithm) ? draft.algorithm : [];
+  const algorithmContainer = document.getElementById("fc-algoritma-container");
+  algorithmContainer.querySelector(".fc-algo-input").value = algorithm[0] || "";
+  for (let index = 1; index < algorithm.length; index += 1) {
+    addAlgoStep();
+    algorithmContainer.querySelectorAll(".fc-algo-input")[index].value = algorithm[index] || "";
+  }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const dciSelect = document.getElementById("dci-material-select");
   const oldContainer = document.querySelector(".dci-container");
@@ -911,6 +999,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const updateDciHeader = () => {
     const isFlowchart = dciSelect.value === "6";
     standardStepper.classList.toggle("d-none", isFlowchart);
+    if (oldContainer) {
+      oldContainer.classList.toggle("dci-d-none", isFlowchart);
+      oldContainer.classList.toggle("d-none", isFlowchart);
+    }
+    if (newContainer) newContainer.classList.toggle("d-none", !isFlowchart);
+    document.getElementById("dciDraftStatus").classList.toggle("d-none", isFlowchart);
+    document.getElementById("btnResetDci").classList.toggle("d-none", isFlowchart);
     headerTitle.textContent = isFlowchart
       ? "DIGITAL CASE INVESTIGATION - FLOWCHART"
       : "DIGITAL CASE INVESTIGATION";
@@ -920,14 +1015,20 @@ document.addEventListener("DOMContentLoaded", () => {
     caseContainer.replaceChildren();
     fcCases.forEach((k) => {
       const selectedByGroup = localStorage.getItem(`case_taken_${k.id}`);
-      const isTaken = Boolean(selectedByGroup);
+      const currentGroup = document.getElementById("fc-kelompok").value.trim();
+      const isTaken = Boolean(selectedByGroup && selectedByGroup !== currentGroup);
       const cardColumn = document.createElement("div");
       cardColumn.className = "col-md-6 col-lg-4";
       const card = document.createElement("div");
       card.className = `fc-case-card ${isTaken ? "disabled" : ""}`;
+      card.dataset.caseId = String(k.id);
       const statusBadge = document.createElement("span");
       statusBadge.className = `badge ${isTaken ? "bg-secondary" : "bg-success"} mb-2`;
-      statusBadge.textContent = isTaken ? `Dipilih Kel. ${selectedByGroup}` : "Tersedia";
+      statusBadge.textContent = isTaken
+        ? `Dipilih Kel. ${selectedByGroup}`
+        : selectedByGroup
+          ? "Dipilih kelompok Anda"
+          : "Tersedia";
       const caseNumber = document.createElement("div");
       caseNumber.className = "fw-bold small text-primary";
       caseNumber.textContent = `KASUS ${k.id}`;
@@ -946,8 +1047,24 @@ document.addEventListener("DOMContentLoaded", () => {
       caseContainer.appendChild(cardColumn);
     });
   };
+  const savedFlowchartDraft = readFlowchartDraft();
+  restoreFlowchartDraftFields(savedFlowchartDraft);
+  if (savedFlowchartDraft && !dciSelect.value) {
+    dciSelect.value = "6";
+    dciSelect.dispatchEvent(new Event("change"));
+  }
   renderFlowchartCases();
   setupFlowchartBuilder();
+  loadFlowchartBuilder();
+  if (savedFlowchartDraft?.selectedCaseId) {
+    const caseCard = caseContainer.querySelector(`[data-case-id="${savedFlowchartDraft.selectedCaseId}"]`);
+    if (caseCard && !caseCard.classList.contains("disabled")) {
+      pilihKasus(Number(savedFlowchartDraft.selectedCaseId), caseCard);
+    }
+  }
+  if (savedFlowchartDraft && selectedFcCase) {
+    navigateToFlowchartRoom(Number(savedFlowchartDraft.currentStep) || 1);
+  }
 
   document.getElementById("btnResetFlowchartCases").addEventListener("click", () => {
     const shouldReset = confirm("Reset semua status kasus Flowchart agar dapat digunakan kembali untuk kelas berikutnya?");
@@ -967,17 +1084,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // TAMPILKAN CONTAINER FLOWCHART JIKA MATERI 6
   if (dciSelect) {
     dciSelect.addEventListener("change", (e) => {
-      if (e.target.value === "6") {
-        if(oldContainer) oldContainer.classList.add("dci-d-none", "d-none");
-        if(newContainer) newContainer.classList.remove("d-none");
-        document.getElementById("dciDraftStatus").classList.add("d-none");
-        document.getElementById("btnResetDci").classList.add("d-none");
-      } else {
-        if(oldContainer) oldContainer.classList.remove("dci-d-none", "d-none");
-        if(newContainer) newContainer.classList.add("d-none");
-        document.getElementById("dciDraftStatus").classList.remove("d-none");
-        document.getElementById("btnResetDci").classList.remove("d-none");
-      }
       updateDciHeader();
     });
     updateDciHeader();
@@ -1018,16 +1124,28 @@ document.addEventListener("DOMContentLoaded", () => {
     input.addEventListener("input", (e) => {
       const groupId = document.getElementById("fc-kelompok").value || "no_group";
       localStorage.setItem(`dci_fc_draft_${groupId}_${e.target.id}`, e.target.value);
+      saveFlowchartDraft();
+      updateFcStepper(currentFcStep);
+    });
+    input.addEventListener("change", saveFlowchartDraft);
+  });
+
+  ["fc-nama", "fc-kelas", "fc-kelompok", "fc-anggota"].forEach((id) => {
+    const field = document.getElementById(id);
+    field.addEventListener("input", () => {
+      saveFlowchartDraft();
+      updateFcStepper(currentFcStep);
+    });
+    field.addEventListener("change", () => {
+      saveFlowchartDraft();
       updateFcStepper(currentFcStep);
     });
   });
-
-  ["fc-nama", "fc-kelas", "fc-kelompok"].forEach((id) => {
-    document.getElementById(id).addEventListener("input", () => updateFcStepper(currentFcStep));
-    document.getElementById(id).addEventListener("change", () => updateFcStepper(currentFcStep));
+  document.getElementById("fc-algoritma-container").addEventListener("input", () => {
+    saveFlowchartDraft();
+    updateFcStepper(currentFcStep);
   });
-  document.getElementById("fc-algoritma-container").addEventListener("input", () => updateFcStepper(currentFcStep));
-  updateFcStepper(1);
+  updateFcStepper(currentFcStep);
 });
 
 function pilihKasus(id, el) {
@@ -1043,11 +1161,13 @@ function pilihKasus(id, el) {
   document.getElementById("fc-skenario-kasus").innerText = selectedFcCase.skenario;
   document.getElementById("fc-tugas-kasus").innerText = selectedFcCase.tugas;
   updateFcStepper(currentFcStep);
+  saveFlowchartDraft();
 }
 
 function saveKasusSelection() {
   const kel = document.getElementById("fc-kelompok").value;
   if(kel) localStorage.setItem(`case_taken_${selectedFcCase.id}`, kel); // Tandai di local
+  saveFlowchartDraft();
 }
 
 let currentFcStep = 1;
@@ -1062,6 +1182,7 @@ function navigateToFlowchartRoom(roomNumber) {
   document.querySelectorAll(".fc-room").forEach((room) => room.classList.add("d-none"));
   document.getElementById(`fc-room-${roomNumber}`).classList.remove("d-none");
   updateFcStepper(roomNumber);
+  saveFlowchartDraft();
 }
 
 function getFcStepStatus(step) {
@@ -1703,6 +1824,7 @@ function saveFlowchartBuilder() {
     nextNodeId: nextFlowNodeId,
     nextConnectionId: nextFlowConnectionId,
   }));
+  saveFlowchartDraft();
 }
 
 function loadFlowchartBuilder() {

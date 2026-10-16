@@ -38,7 +38,9 @@ Jika Web App sudah pernah dideploy, pilih **Deploy > Manage deployments**, edit 
 
 ## Pengumpulan LKM ke Google Drive
 
-Formulir LKM sekarang menerima PDF, DOC, dan DOCX hingga 10 MB. Website meminta nama dan kelas sebelum file diunggah, lalu Apps Script memberi nama file berdasarkan materi, nama, kelas, waktu pengiriman, dan nama file asli. Setiap materi langsung disimpan ke folder Google Drive yang sesuai; unggahan Materi 6 (Flowchart) masuk ke folder [Pengumpulan LKM Flowchart](https://drive.google.com/drive/folders/1JhuDF2peLGlQ36yoTzaCdpV55Mer7QOE?usp=drive_link).
+Formulir LKM menerima PDF, DOC, DOCX, JPG, JPEG, dan PNG hingga 10 MB. Website meminta nama dan kelas sebelum file diunggah, lalu Apps Script memberi nama file berdasarkan materi, nama, kelas, waktu pengiriman, dan nama file asli. Setiap materi langsung disimpan ke folder Google Drive yang sesuai; unggahan Materi 6 (Flowchart) masuk ke folder [Pengumpulan LKM Flowchart](https://drive.google.com/drive/folders/1JhuDF2peLGlQ36yoTzaCdpV55Mer7QOE?usp=drive_link).
+
+Jawaban DCI disimpan otomatis di penyimpanan browser pada perangkat yang sama, termasuk tahap terakhir dan pilihan kasus Flowchart. Draft dapat dipulihkan selama siswa memakai browser/profil dan alamat website yang sama serta tidak menghapus data situs.
 
 Setelah mengganti kode `Code.gs` pada Apps Script, jalankan deployment versi baru melalui **Deploy > Manage deployments**. Google akan meminta izin tambahan untuk mengelola Google Drive; setujui izin tersebut hanya bila folder tujuan dan akun pemiliknya memang milik Anda. Pengaturan deployment tetap **Execute as: Me** agar siswa tidak diminta izin Drive.
 

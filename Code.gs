@@ -27,6 +27,9 @@ const ALLOWED_LKM_MIME_TYPES = {
   pdf: 'application/pdf',
   doc: 'application/msword',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
 };
 const MAX_LKM_BYTES = 10 * 1024 * 1024;
 const LKM_LOG_SHEET = 'Log Pengumpulan LKM';
