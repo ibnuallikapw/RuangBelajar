@@ -53,6 +53,28 @@ const DCI_HEADERS = [
   'Refleksi Tanggung Jawab (CASEL)',
   'JSON Data Lengkap'
 ];
+const SIMPLE_DCI_SHEET_NAME = 'DCI - Materi 1 LKM Sederhana';
+const SIMPLE_DCI_HEADERS = [
+  'Waktu Kirim',
+  'Materi',
+  'Nama',
+  'Kelas',
+  'Bukti Digunakan',
+  'Bukti Terbaik',
+  'Alasan Memilih Bukti',
+  'IPO - Input',
+  'IPO - Process',
+  'IPO - Output',
+  'Hardware Berkaitan',
+  'Software Digunakan',
+  'Sistem Operasi',
+  'Penyebab Utama',
+  'Rekomendasi',
+  'Alasan Menolak RAM Booster',
+  'Kesimpulan',
+  'Refleksi',
+  'JSON Data Lengkap'
+];
 const FLOWCHART_DCI_SHEET_NAME = 'DCI_Flowchart';
 const FLOWCHART_DCI_HEADERS = [
   'Waktu Kirim',
@@ -91,8 +113,22 @@ const FLOWCHART_DCI_HEADERS = [
   'JSON Data Lengkap'
 ];
 
+function doGet() {
+  return response({
+    ok: true,
+    message: 'RuangBelajar Apps Script aktif. Gunakan POST dari website untuk mengirim data.'
+  });
+}
+
 function doPost(event) {
   let data = {};
+  if (!event || !event.postData || typeof event.postData.contents !== 'string') {
+    return response({
+      ok: false,
+      message: 'doPost tidak dapat dijalankan langsung dari editor. Kirim data melalui website atau uji dengan request POST.'
+    });
+  }
+
   try {
     data = JSON.parse(event.postData.contents || '{}');
     if (data.action === 'saveFlowchartDCI' || data.type === 'dci_flowchart') {
@@ -134,6 +170,36 @@ function saveReflection(data) {
 
 function saveDci(data) {
   const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  if (data.lkm) {
+    const sheet = getOrCreateSheet(spreadsheet, SIMPLE_DCI_SHEET_NAME, SIMPLE_DCI_HEADERS);
+    ensureSimpleDciHeaders(sheet);
+    const lkm = data.lkm || {};
+    const ipo = lkm.ipo || {};
+    const evidenceText = Array.isArray(data.evidenceUsed) ? data.evidenceUsed.join('; ') : sanitize(data.evidenceUsed);
+    sheet.appendRow([
+      new Date(),
+      sanitize(data.materi || 'IPO, Hardware, Software, dan Sistem Operasi'),
+      sanitize(data.nama),
+      sanitize(data.kelas),
+      evidenceText,
+      sanitize(data.sourceChallengeChoice),
+      sanitize(data.sourceChallengeReason),
+      sanitize(ipo.input),
+      sanitize(ipo.process),
+      sanitize(ipo.output),
+      sanitize(lkm.hardware || data.analysisHardware),
+      sanitize(lkm.software || data.analysisSoftware),
+      sanitize(lkm.sistemOperasi || data.analysisOS),
+      sanitize(data.decisionCause),
+      sanitize(data.decisionRecommendation),
+      sanitize(lkm.alasanMenolakRamBooster || data.reflectionResponsibility),
+      sanitize(lkm.kesimpulan),
+      sanitize(lkm.refleksi || data.reflectionChange),
+      JSON.stringify(data)
+    ]);
+    return response({ ok: true, message: 'Data DCI berhasil disimpan.' });
+  }
+
   const sheet = getOrCreateSheet(spreadsheet, DCI_SHEET_NAME, DCI_HEADERS);
 
   const evidenceText = Array.isArray(data.evidenceUsed) ? data.evidenceUsed.join('; ') : sanitize(data.evidenceUsed);
@@ -293,6 +359,14 @@ function ensureFlowchartDciHeaders(sheet) {
   }
 }
 
+function ensureSimpleDciHeaders(sheet) {
+  const existingColumnCount = sheet.getLastColumn();
+  if (existingColumnCount < SIMPLE_DCI_HEADERS.length) {
+    const missingHeaders = SIMPLE_DCI_HEADERS.slice(existingColumnCount);
+    sheet.getRange(1, existingColumnCount + 1, 1, missingHeaders.length).setValues([missingHeaders]);
+  }
+}
+
 function sheetNameForMaterial(materiName) {
   const num = materialNumberFor(materiName);
   return SHEETS_BY_MATERIAL[num] || UNRECOGNIZED_SHEET;
@@ -318,5 +392,6 @@ function buatSemuaSheet() {
   getOrCreateSheet(spreadsheet, UNRECOGNIZED_SHEET);
   getOrCreateSheet(spreadsheet, LKM_LOG_SHEET, LKM_LOG_HEADERS);
   getOrCreateSheet(spreadsheet, DCI_SHEET_NAME, DCI_HEADERS);
+  ensureSimpleDciHeaders(getOrCreateSheet(spreadsheet, SIMPLE_DCI_SHEET_NAME, SIMPLE_DCI_HEADERS));
   ensureFlowchartDciHeaders(getOrCreateSheet(spreadsheet, FLOWCHART_DCI_SHEET_NAME, FLOWCHART_DCI_HEADERS));
 }

@@ -20,7 +20,8 @@ File `Code.gs` sudah disiapkan untuk spreadsheet refleksi individu materi IPO, H
 2. Hapus isi editor dan tempel seluruh isi dari `Code.gs`, kemudian simpan.
 3. Pilih **Deploy > New deployment > Web app**. Atur **Execute as: Me** dan **Who has access: Anyone**, lalu pilih **Deploy**. Setujui izin Google yang muncul.
 4. Salin URL yang dihasilkan (harus berakhir dengan `/exec`).
-5. Pada `script.js`, ganti teks `PASTE_URL_WEB_APP_APPS_SCRIPT_DI_SINI` dengan URL tersebut.
+5. Pada `index.html`, atur `window.RUANGBELAJAR_APPS_SCRIPT_URL` ke URL Web App tersebut. URL deployment saat ini sudah terpasang dan dapat diganti jika membuat deployment baru.
+6. Buka URL `/exec` tersebut di browser. Pesan **RuangBelajar Apps Script aktif** menandakan deployment dapat dijangkau. Untuk uji simpan, kirim formulir dari website; jangan menjalankan `doPost` langsung dari editor karena fungsi tersebut memerlukan objek request dari website.
 
 Setiap refleksi akan otomatis masuk ke sheet sesuai materinya, lengkap dengan waktu kirim, materi, nama, kelas, dan isi refleksi:
 
@@ -30,17 +31,17 @@ Setiap refleksi akan otomatis masuk ke sheet sesuai materinya, lengkap dengan wa
 - **Refleksi Aplikasi Produktivitas AI & Infografis**
 - **Refleksi Portofolio & Review Materi**
 
-Setelah mengganti kode pada Apps Script, pilih fungsi **buatSemuaSheet** pada menu fungsi di bagian atas editor, lalu klik **Run** satu kali. Fungsi ini hanya membuat kelima tab tersebut. Jangan menjalankan `doPost` secara manual.
+Setelah mengganti kode pada Apps Script, pilih fungsi **buatSemuaSheet** pada menu fungsi di bagian atas editor, lalu klik **Run** satu kali untuk menyiapkan tab yang digunakan website, termasuk tab DCI Materi 1 dan Flowchart. Jangan menjalankan `doPost` secara manual.
 
 Untuk memisahkan data lama yang sudah terlanjur bercampur di tab pertama, jalankan sekali fungsi **pindahkanDataLamaKeSheetMateri**. Fungsi ini memindahkan baris Materi 2 sampai 5 ke tab materi masing-masing dan menyisakan data Materi 1 di tab pertama. Baris uji lama yang tidak memiliki label `Materi 1` sampai `Materi 5` akan dipindahkan ke tab **Refleksi Data Perlu Ditinjau**, sehingga tidak ada data yang hilang.
 
-Jika Web App sudah pernah dideploy, pilih **Deploy > Manage deployments**, edit deployment yang ada, pilih versi baru, lalu deploy ulang. URL `/exec` yang sudah dipasang pada website tetap dapat digunakan.
+Jika Web App sudah pernah dideploy, pilih **Deploy > Manage deployments**, edit deployment yang ada, pilih versi baru, lalu deploy ulang. Pastikan akses **Who has access** mengizinkan pengguna website (mis. **Anyone**). URL `/exec` yang sudah dipasang pada website tetap dapat digunakan selama deployment tersebut diedit, bukan dibuat deployment baru.
 
 ## Pengumpulan LKM ke Google Drive
 
 Formulir LKM menerima PDF, DOC, DOCX, JPG, JPEG, dan PNG hingga 10 MB. Website meminta nama dan kelas sebelum file diunggah, lalu Apps Script memberi nama file berdasarkan materi, nama, kelas, waktu pengiriman, dan nama file asli. Setiap materi langsung disimpan ke folder Google Drive yang sesuai; unggahan Materi 6 (Flowchart) masuk ke folder [Pengumpulan LKM Flowchart](https://drive.google.com/drive/folders/1JhuDF2peLGlQ36yoTzaCdpV55Mer7QOE?usp=drive_link).
 
-Jawaban DCI disimpan otomatis di penyimpanan browser pada perangkat yang sama, termasuk tahap terakhir dan pilihan kasus Flowchart. Draft dapat dipulihkan selama siswa memakai browser/profil dan alamat website yang sama serta tidak menghapus data situs.
+Jawaban DCI disimpan otomatis di penyimpanan browser pada perangkat yang sama, termasuk tahap terakhir dan pilihan kasus Flowchart. Draft Materi 1 memakai alur empat tahap; siswa mencatat penggunaan CPU, RAM/memori, dan disk serta spesifikasi komputer yang sedang mereka pakai. Hasilnya masuk ke tab **DCI - Materi 1 LKM Sederhana**, sementara materi lainnya tetap memakai alur DCI lama. Draft dapat dipulihkan selama siswa memakai browser/profil dan alamat website yang sama serta tidak menghapus data situs.
 
 Setelah mengganti kode `Code.gs` pada Apps Script, jalankan deployment versi baru melalui **Deploy > Manage deployments**. Google akan meminta izin tambahan untuk mengelola Google Drive; setujui izin tersebut hanya bila folder tujuan dan akun pemiliknya memang milik Anda. Pengaturan deployment tetap **Execute as: Me** agar siswa tidak diminta izin Drive.
 

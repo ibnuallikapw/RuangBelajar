@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^diff -u index\\.html /Users/user/Downloads/index\\.html$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

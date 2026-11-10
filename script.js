@@ -2,7 +2,7 @@
  * Tempel URL Web app Google Apps Script (yang berakhir dengan /exec)
  * setelah menjalankan langkah deployment pada file Code.gs.
  */
-const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby6n0NMBEI-gYvn6lfLzOTuq61cDI8PUFrfRl96-FpyTpNwExyfLt39jnOxj3Xz9f4f/exec';
+const GOOGLE_APPS_SCRIPT_URL = window.RUANGBELAJAR_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbyN-wicATAcSE8tHy6VTHQIgNVnSWOktrgt_pYOfnfykjtAVh5KjUGRgJeaArx-4vUj/exec';
 const CLASS_OPTIONS = ['10 - TKI', '10 - TFLM', '10 - GP', '10 - TITL', '10 - TBKR'];
 const MAX_LKM_FILE_SIZE = 10 * 1024 * 1024;
 const ALLOWED_LKM_EXTENSIONS = ['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png'];
@@ -309,6 +309,19 @@ const DCI_MATERIALS = {
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('currentYear').textContent = new Date().getFullYear();
 
+  document.querySelectorAll('a[href^="/Users/user/Documents/TesterKumpul/Materi/"]').forEach((link) => {
+    const filename = link.getAttribute('href').split('/').pop();
+    link.setAttribute('href', `Materi/${filename}`);
+  });
+  document.querySelectorAll('.btn-open-dci').forEach((button) => {
+    button.addEventListener('click', () => setTimeout(() => {
+      if (materialSelect && !materialSelect.value) {
+        materialSelect.value = '1';
+        materialSelect.dispatchEvent(new Event('change'));
+      }
+    }, 0));
+  });
+
   // Populate Class Selects untuk Form Refleksi Lama
   document.querySelectorAll('input[id^="class-"]').forEach((input) => {
     const select = document.createElement('select');
@@ -493,6 +506,325 @@ document.addEventListener('DOMContentLoaded', () => {
   let activeMaterialId = '';
   const materialSelect = document.getElementById('dci-material-select');
   const dciDrafts = {};
+  const SIMPLE_DCI_STORAGE_KEY = 'ruangbelajar:dci:materi-1:v2';
+  const SIMPLE_DCI_STAGES = [
+    ['Investigasi kasus', '5 menit'],
+    ['Pemeriksaan bukti', '10 menit'],
+    ['Analisis dan keputusan', '10 menit'],
+    ['Kesimpulan dan refleksi', '5 menit'],
+  ];
+  let simpleDciStage = 1;
+  let simpleDciDraft = {};
+  let simpleDciActive = false;
+  let simpleDciWorkspace;
+  let simpleDciStepper;
+
+  const simpleDciMarkup = () => `
+    <div id="dci-simple-workspace" class="dci-simple-workspace">
+      <section class="simple-stage" data-stage="1">
+        <div class="stage-heading"><span class="stage-time">5 menit</span><h3><i class="fa-solid fa-file-lines text-primary me-2"></i>Investigasi kasus</h3></div>
+        <p class="text-muted">Lengkapi identitas, lalu baca kasus sebagai tim investigator teknologi.</p>
+        <div class="row g-4 mb-4">
+          <div class="col-lg-5"><div class="card border bg-light p-4 h-100 rounded-4">
+            <h5 class="fw-bold mb-3"><i class="fa-solid fa-id-card text-primary me-2"></i>Identitas Siswa</h5>
+            <label class="form-label" for="simple-name">Nama lengkap</label>
+            <input id="simple-name" class="form-control mb-3" data-dci-field="nama" required placeholder="Masukkan nama lengkap" />
+            <label class="form-label" for="simple-class">Kelas</label>
+            <select id="simple-class" class="form-select" data-dci-field="kelas" required><option value="">Pilih kelas</option><option>10 - TKI</option><option>10 - TFLM</option><option>10 - GP</option><option>10 - TITL</option><option>10 - TBKR</option></select>
+          </div></div>
+          <div class="col-lg-7"><div class="case-card h-100">
+            <span class="badge bg-primary mb-2">Misi investigasi</span>
+            <h4>Investigasi Komputer yang Sedang Anda Gunakan</h4>
+            <p>Gunakan komputer atau laptop yang sedang Anda pakai untuk mengerjakan LKM ini. Amati aplikasi yang terbuka, kondisi perangkat, dan penggunaan sumber dayanya.</p>
+            <p class="mb-0">Jangan memakai angka contoh. Catat kondisi nyata perangkat Anda saat ini, lalu simpulkan apakah sumber dayanya cukup untuk aktivitas yang sedang dilakukan.</p>
+          </div></div>
+        </div>
+        <div class="alert alert-info mb-4"><i class="fa-solid fa-user-shield me-2"></i>Tugas tim: temukan kemungkinan penyebab dan buat rekomendasi berdasarkan bukti digital, bukan dugaan.</div>
+      </section>
+      <section class="simple-stage d-none" data-stage="2">
+        <div class="stage-heading"><span class="stage-time">10 menit</span><h3><i class="fa-solid fa-folder-open text-primary me-2"></i>Pemeriksaan empat bukti digital</h3></div>
+        <p class="text-muted">Gunakan komputer yang sedang Anda pakai. Isi data sesuai hasil pengamatan, lalu centang setiap bukti yang sudah diperiksa.</p>
+        <div class="row g-3 evidence-grid">
+          <article class="col-md-6"><div class="evidence-card-simple h-100">
+            <span class="badge bg-primary">Bukti 1</span><h5>Data Task Manager / pemantau aktivitas</h5>
+            <p class="mb-0">Buka Task Manager (Windows: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Esc</kbd>) atau pemantau aktivitas yang tersedia di perangkat Anda. Catat angka saat ini; jika tidak ditampilkan dalam persen, tulis “Tidak tersedia”.</p>
+            <div class="row g-2">
+              <div class="col-4"><label class="form-label" for="task-cpu">CPU (%)</label><input id="task-cpu" class="form-control" type="text" inputmode="decimal" data-dci-field="task_cpu" required placeholder="Contoh: 35%" /></div>
+              <div class="col-4"><label class="form-label" for="task-ram">RAM / Memori</label><input id="task-ram" class="form-control" type="text" inputmode="decimal" data-dci-field="task_ram" required placeholder="Contoh: 89%" /></div>
+              <div class="col-4"><label class="form-label" for="task-disk">Disk</label><input id="task-disk" class="form-control" type="text" inputmode="decimal" data-dci-field="task_disk" required placeholder="Contoh: 15%" /></div>
+            </div>
+            <label class="form-check"><input class="form-check-input" type="checkbox" data-dci-field="bukti1_diamati" /> <span class="form-check-label">Saya telah mengamati bukti ini.</span></label>
+          </div></article>
+          <article class="col-md-6"><div class="evidence-card-simple h-100">
+            <span class="badge bg-primary">Bukti 2</span><h5>Spesifikasi perangkat yang digunakan</h5>
+            <p class="mb-0">Periksa pengaturan <em>About / Tentang perangkat</em> atau informasi sistem. Jika detail tidak tersedia, isi “Tidak diketahui”.</p>
+            <label class="form-label mb-0" for="spec-cpu">Prosesor</label><input id="spec-cpu" class="form-control" data-dci-field="spec_cpu" required placeholder="Contoh: Intel Core i5 / Apple M1" />
+            <label class="form-label mb-0" for="spec-ram">RAM / Memori</label><input id="spec-ram" class="form-control" data-dci-field="spec_ram" required placeholder="Contoh: 8 GB" />
+            <label class="form-label mb-0" for="spec-storage">Penyimpanan</label><input id="spec-storage" class="form-control" data-dci-field="spec_storage" required placeholder="Contoh: SSD 512 GB" />
+            <label class="form-label mb-0" for="spec-os">Sistem operasi dan versi</label><input id="spec-os" class="form-control" data-dci-field="spec_os" required placeholder="Contoh: Windows 11 / macOS Sequoia" />
+            <label class="form-check"><input class="form-check-input" type="checkbox" data-dci-field="bukti2_diamati" /> <span class="form-check-label">Saya telah mengamati bukti ini.</span></label>
+          </div></article>
+          <article class="col-md-6"><div class="evidence-card-simple h-100"><span class="badge bg-primary">Bukti 3</span><h5>Informasi teknis Microsoft</h5><p>Ketika memori fisik terbatas, Windows dapat menggunakan <em>virtual memory</em> pada media penyimpanan. Kondisi ini dapat memengaruhi respons sistem.</p><p class="source-note"><i class="fa-solid fa-circle-check me-1"></i>Dokumentasi teknis dari pembuat sistem operasi.</p><label class="form-check"><input class="form-check-input" type="checkbox" data-dci-field="bukti3_diamati" /> <span class="form-check-label">Saya telah mengamati bukti ini.</span></label></div></article>
+          <article class="col-md-6"><div class="evidence-card-simple h-100"><span class="badge bg-secondary">Bukti 4</span><h5>Klaim blog “RAM Booster”</h5><p>Sebuah blog teknologi menyatakan bahwa memasang aplikasi RAM Booster dapat membuat komputer lebih cepat secara instan.</p><p class="source-note text-warning-emphasis"><i class="fa-solid fa-triangle-exclamation me-1"></i>Klaim promosi; perlu dibandingkan dengan data dan sumber teknis.</p><label class="form-check"><input class="form-check-input" type="checkbox" data-dci-field="bukti4_diamati" /> <span class="form-check-label">Saya telah mengamati bukti ini.</span></label></div></article>
+        </div>
+      </section>
+      <section class="simple-stage d-none" data-stage="3">
+        <div class="stage-heading"><span class="stage-time">10 menit</span><h3><i class="fa-solid fa-brain text-primary me-2"></i>Analisis dan keputusan</h3></div>
+        <p class="text-muted">Jawab dengan singkat, jelas, dan selalu hubungkan dengan bukti yang tersedia.</p>
+        <div class="analysis-block"><h5>1. Identifikasi sistem komputer (IPO)</h5><div class="row g-3"><div class="col-md-4"><label class="form-label" for="ipo-input">Input</label><textarea id="ipo-input" class="form-control" data-dci-field="ipo_input" required rows="3" placeholder="Data/perintah yang masuk..."></textarea></div><div class="col-md-4"><label class="form-label" for="ipo-process">Process</label><textarea id="ipo-process" class="form-control" data-dci-field="ipo_process" required rows="3" placeholder="Pengolahan oleh CPU, RAM, OS..."></textarea></div><div class="col-md-4"><label class="form-label" for="ipo-output">Output</label><textarea id="ipo-output" class="form-control" data-dci-field="ipo_output" required rows="3" placeholder="Hasil yang terlihat pengguna..."></textarea></div></div></div>
+        <div class="analysis-block"><h5>2. Komponen yang berkaitan</h5><div class="row g-3"><div class="col-md-4"><label class="form-label" for="hardware">Hardware paling berkaitan</label><input id="hardware" class="form-control" data-dci-field="hardware" required placeholder="Contoh: RAM 4 GB" /></div><div class="col-md-4"><label class="form-label" for="software">Software yang digunakan</label><input id="software" class="form-control" data-dci-field="software" required placeholder="Contoh: Chrome, Word, ..." /></div><div class="col-md-4"><label class="form-label" for="os">Sistem operasi</label><input id="os" class="form-control" data-dci-field="sistem_operasi" required placeholder="Contoh: Windows 11 64-bit" /></div></div></div>
+        <div class="analysis-block"><h5>3. Evaluasi bukti digital</h5><label class="form-label d-block">Bukti terbaik sebagai dasar diagnosis</label><div class="evidence-choice"><label><input type="radio" name="bukti-terbaik" value="Bukti 1 — Task Manager" data-dci-field="bukti_terbaik" required /> Bukti 1 — Task Manager</label><label><input type="radio" name="bukti-terbaik" value="Bukti 2 — Spesifikasi komputer" data-dci-field="bukti_terbaik" /> Bukti 2 — Spesifikasi komputer</label><label><input type="radio" name="bukti-terbaik" value="Bukti 3 — Dokumentasi Microsoft" data-dci-field="bukti_terbaik" /> Bukti 3 — Dokumentasi Microsoft</label><label><input type="radio" name="bukti-terbaik" value="Bukti 4 — Blog RAM Booster" data-dci-field="bukti_terbaik" /> Bukti 4 — Blog RAM Booster</label></div><label class="form-label mt-3" for="alasan-bukti">Alasan pemilihan</label><textarea id="alasan-bukti" class="form-control" data-dci-field="alasan_bukti" required rows="2"></textarea></div>
+        <div class="analysis-block"><h5>4. Ambil keputusan berdasarkan bukti</h5><label class="form-label" for="penyebab">Kemungkinan penyebab utama</label><textarea id="penyebab" class="form-control mb-3" data-dci-field="penyebab" required rows="2"></textarea><label class="form-label" for="rekomendasi">Rekomendasi penyelesaian</label><textarea id="rekomendasi" class="form-control mb-3" data-dci-field="rekomendasi" required rows="2" placeholder="Contoh: kurangi tab, tutup aplikasi tidak digunakan, pertimbangkan tambah RAM."></textarea><label class="form-label" for="tolak-booster">Mengapa menolak klaim RAM Booster?</label><textarea id="tolak-booster" class="form-control" data-dci-field="alasan_tolak_ram_booster" required rows="2"></textarea></div>
+      </section>
+      <section class="simple-stage d-none" data-stage="4">
+        <div class="stage-heading"><span class="stage-time">5 menit</span><h3><i class="fa-solid fa-flag-checkered text-primary me-2"></i>Kesimpulan dan refleksi</h3></div>
+        <div class="analysis-block"><label class="form-label" for="kesimpulan">Kesimpulan investigasi</label><textarea id="kesimpulan" class="form-control" data-dci-field="kesimpulan" required rows="4" placeholder="Berdasarkan bukti yang telah diperiksa, kelompok kami menyimpulkan bahwa..."></textarea></div>
+        <div class="analysis-block"><label class="form-label" for="refleksi">Refleksi singkat</label><p class="small text-muted">Apa satu hal penting yang akan Anda lakukan sebelum mempercayai informasi atau solusi masalah komputer dari internet?</p><textarea id="refleksi" class="form-control" data-dci-field="refleksi" required rows="3"></textarea></div>
+        <div class="form-check alert alert-warning"><input id="integritas" class="form-check-input" type="checkbox" data-dci-field="integritas" required /><label class="form-check-label" for="integritas">Saya menyatakan jawaban dibuat berdasarkan bukti yang tersedia dan hasil diskusi kelompok.</label></div>
+        <div class="card bg-light border p-3"><h5 class="fw-bold mb-2">Ringkasan sebelum dikirim</h5><div id="simple-summary" class="small text-muted">Ringkasan akan muncul saat tahap ini dibuka.</div></div>
+      </section>
+      <div class="d-flex justify-content-between gap-3 mt-4"><button type="button" class="btn btn-outline-secondary" id="simple-back"><i class="fa-solid fa-arrow-left me-2"></i>Kembali</button><button type="button" class="btn btn-primary px-4" id="simple-next">Lanjut <i class="fa-solid fa-arrow-right ms-2"></i></button></div>
+    </div>`;
+
+  const ensureSimpleDciContainers = () => {
+    const standardStepper = document.querySelector('.dci-header > .dci-stepper-wrapper');
+    const standardContainer = document.querySelector('.dci-container');
+    if (!simpleDciStepper) {
+      simpleDciStepper = document.createElement('div');
+      simpleDciStepper.className = 'dci-stepper-wrapper dci-simple-stepper-wrapper d-none';
+      standardStepper.insertAdjacentElement('afterend', simpleDciStepper);
+    }
+    if (!simpleDciWorkspace) {
+      simpleDciWorkspace = document.createElement('div');
+      simpleDciWorkspace.className = 'dci-simple-container card shadow-sm border-0 rounded-4 p-4 p-md-5 d-none';
+      standardContainer.insertAdjacentElement('afterend', simpleDciWorkspace);
+    }
+  };
+
+  const getSimpleDciFields = () => Array.from(
+    document.querySelectorAll('#dci-simple-workspace [data-dci-field]')
+  );
+  const getSimpleDciValues = () => {
+    const values = {};
+    getSimpleDciFields().forEach((field) => {
+      if (field.type === 'radio') {
+        if (field.checked) values[field.dataset.dciField] = field.value;
+      } else if (field.type === 'checkbox') {
+        values[field.dataset.dciField] = field.checked;
+      } else {
+        values[field.dataset.dciField] = field.value;
+      }
+    });
+    return values;
+  };
+  const simpleDciEscape = (value) => String(value || '').replace(/[&<>'"]/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;',
+  }[character]));
+
+  const saveSimpleDciDraft = () => {
+    if (!simpleDciActive) return;
+    simpleDciDraft = {
+      ...simpleDciDraft,
+      ...getSimpleDciValues(),
+      currentStage: simpleDciStage,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(SIMPLE_DCI_STORAGE_KEY, JSON.stringify(simpleDciDraft));
+    dciDrafts['1'] = { currentRoom: simpleDciStage };
+    localStorage.setItem(DCI_STORAGE_KEY, JSON.stringify({
+      selectedMaterial: '1',
+      drafts: dciDrafts,
+    }));
+    const status = document.getElementById('dciDraftStatus');
+    status.className = 'badge bg-secondary p-2 me-1';
+    status.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Draf tersimpan';
+  };
+
+  const restoreSimpleDciDraft = () => {
+    try {
+      simpleDciDraft = JSON.parse(localStorage.getItem(SIMPLE_DCI_STORAGE_KEY) || '{}');
+    } catch (error) {
+      console.error('Gagal memuat draf DCI Materi 1:', error);
+      simpleDciDraft = {};
+    }
+    getSimpleDciFields().forEach((field) => {
+      const value = simpleDciDraft[field.dataset.dciField];
+      if (value === undefined) return;
+      if (field.type === 'checkbox') field.checked = Boolean(value);
+      else if (field.type === 'radio') field.checked = field.value === value;
+      else field.value = value;
+    });
+    simpleDciStage = Number(simpleDciDraft.currentStage) || 1;
+    if (simpleDciDraft.savedAt) {
+      const status = document.getElementById('dciDraftStatus');
+      status.className = 'badge bg-secondary p-2 me-1';
+      status.innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Draf dipulihkan';
+    }
+  };
+
+  const renderSimpleDciStepper = () => {
+    simpleDciStepper.innerHTML = `<div class="dci-stepper d-flex justify-content-between">${SIMPLE_DCI_STAGES.map(([label, time], index) => `<button class="step-item ${index + 1 === simpleDciStage ? 'active' : ''} ${index + 1 < simpleDciStage ? 'completed' : ''}" type="button" data-simple-step="${index + 1}"><span class="step-num">${index + 1}</span><span class="step-label">${label}</span><small>${time}</small></button>`).join('')}</div><div class="progress mt-2" style="height:6px"><div class="progress-bar bg-primary" style="width:${simpleDciStage * 25}%"></div></div>`;
+    simpleDciStepper.querySelectorAll('[data-simple-step]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const target = Number(button.dataset.simpleStep);
+        if (target <= simpleDciStage) showSimpleDciStage(target);
+      });
+    });
+  };
+
+  const updateSimpleDciSummary = () => {
+    const value = getSimpleDciValues();
+    document.getElementById('simple-summary').innerHTML = `<strong>${simpleDciEscape(value.nama || 'Nama belum diisi')}</strong> · ${simpleDciEscape(value.kelas || 'Kelas belum dipilih')}<br><strong>Bukti terbaik:</strong> ${simpleDciEscape(value.bukti_terbaik || 'Belum dipilih')}<br><strong>Penyebab:</strong> ${simpleDciEscape(value.penyebab || 'Belum diisi')}<br><strong>Rekomendasi:</strong> ${simpleDciEscape(value.rekomendasi || 'Belum diisi')}`;
+  };
+
+  function showSimpleDciStage(stage) {
+    simpleDciStage = stage;
+    simpleDciWorkspace.querySelectorAll('.simple-stage').forEach((section) => {
+      section.classList.toggle('d-none', Number(section.dataset.stage) !== stage);
+    });
+    document.getElementById('simple-back').classList.toggle('invisible', stage === 1);
+    document.getElementById('simple-next').innerHTML = stage === 4
+      ? '<i class="fa-solid fa-paper-plane me-2"></i>Kirim hasil investigasi'
+      : 'Lanjut <i class="fa-solid fa-arrow-right ms-2"></i>';
+    if (stage === 4) updateSimpleDciSummary();
+    renderSimpleDciStepper();
+    saveSimpleDciDraft();
+    document.getElementById('dci').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  const validateSimpleDciStage = (stage) => {
+    if (stage === 2 && getSimpleDciFields().filter((field) => field.dataset.dciField.endsWith('_diamati')).some((field) => !field.checked)) {
+      alert('Silakan tandai keempat bukti setelah masing-masing diamati.');
+      return false;
+    }
+    const fields = simpleDciWorkspace.querySelectorAll(`.simple-stage[data-stage="${stage}"] [required]`);
+    const invalid = Array.from(fields).find((field) => !field.checkValidity());
+    if (!invalid) return true;
+    invalid.reportValidity();
+    invalid.focus();
+    return false;
+  };
+
+  const submitSimpleDci = async () => {
+    if (!validateSimpleDciStage(4)) return;
+    if (!GOOGLE_APPS_SCRIPT_URL || GOOGLE_APPS_SCRIPT_URL.includes('PASTE_URL')) {
+      showToast('Koneksi belum selesai', 'Masukkan URL Web App Google Apps Script pada index.html.', false);
+      return;
+    }
+    const value = getSimpleDciValues();
+    const formatUsage = (reading) => {
+      const text = String(reading || '').trim();
+      return /%$|tidak tersedia/i.test(text) ? text : `${text}%`;
+    };
+    const data = {
+      type: 'dci',
+      action: 'saveDCI',
+      materi: DCI_MATERIALS[1].title,
+      nama: String(value.nama || '').trim(),
+      kelas: String(value.kelas || '').trim(),
+      evidenceUsed: [
+        `Bukti 1 — Penggunaan saat diamati: CPU ${formatUsage(value.task_cpu)}, RAM/Memori ${formatUsage(value.task_ram)}, Disk ${formatUsage(value.task_disk)}`,
+        `Bukti 2 — Perangkat yang digunakan: Prosesor ${value.spec_cpu}; RAM/Memori ${value.spec_ram}; Penyimpanan ${value.spec_storage}; Sistem operasi ${value.spec_os}`,
+        'Bukti 3 — Dokumentasi Microsoft',
+        'Bukti 4 — Blog RAM Booster',
+      ],
+      sourceChallengeChoice: value.bukti_terbaik || '',
+      sourceChallengeReason: value.alasan_bukti || '',
+      analysisHardware: value.hardware || '',
+      analysisSoftware: value.software || '',
+      analysisOS: value.sistem_operasi || '',
+      decisionCause: value.penyebab || '',
+      decisionRecommendation: value.rekomendasi || '',
+      reflectionChange: value.refleksi || '',
+      reflectionResponsibility: value.alasan_tolak_ram_booster || '',
+      lkm: {
+        taskManager: {
+          cpuPercent: value.task_cpu || '',
+          ramPercent: value.task_ram || '',
+          diskPercent: value.task_disk || '',
+        },
+        perangkat: {
+          prosesor: value.spec_cpu || '',
+          ram: value.spec_ram || '',
+          penyimpanan: value.spec_storage || '',
+          sistemOperasi: value.spec_os || '',
+        },
+        ipo: {
+          input: value.ipo_input || '',
+          process: value.ipo_process || '',
+          output: value.ipo_output || '',
+        },
+        hardware: value.hardware || '',
+        software: value.software || '',
+        sistemOperasi: value.sistem_operasi || '',
+        buktiTerbaik: value.bukti_terbaik || '',
+        alasanBukti: value.alasan_bukti || '',
+        penyebab: value.penyebab || '',
+        rekomendasi: value.rekomendasi || '',
+        alasanMenolakRamBooster: value.alasan_tolak_ram_booster || '',
+        kesimpulan: value.kesimpulan || '',
+        refleksi: value.refleksi || '',
+      },
+    };
+    const button = document.getElementById('simple-next');
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Mengirim...';
+    try {
+      await fetch(GOOGLE_APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(data),
+      });
+      localStorage.removeItem(SIMPLE_DCI_STORAGE_KEY);
+      simpleDciDraft = {};
+      document.getElementById('dciDraftStatus').className = 'badge bg-success p-2 me-1';
+      document.getElementById('dciDraftStatus').innerHTML = '<i class="fa-solid fa-floppy-disk me-1"></i> Hasil telah dikirim';
+      showToast('Hasil terkirim', 'Permintaan hasil investigasi telah diteruskan ke spreadsheet guru.');
+      button.innerHTML = '<i class="fa-solid fa-circle-check me-2"></i>Berhasil dikirim';
+    } catch (error) {
+      saveSimpleDciDraft();
+      showToast('Pengiriman gagal', 'Jawaban tetap tersimpan sebagai draf. Periksa koneksi internet lalu coba lagi.', false);
+      button.disabled = false;
+      button.innerHTML = '<i class="fa-solid fa-paper-plane me-2"></i>Kirim hasil investigasi';
+    }
+  };
+
+  const activateSimpleDci = () => {
+    ensureSimpleDciContainers();
+    simpleDciActive = true;
+    document.querySelector('.dci-header > .dci-stepper-wrapper').classList.add('d-none');
+    document.querySelector('.dci-container').classList.add('d-none');
+    simpleDciStepper.classList.remove('d-none');
+    simpleDciWorkspace.classList.remove('d-none');
+    simpleDciWorkspace.innerHTML = simpleDciMarkup();
+    document.getElementById('dciMaterialName').textContent = `Materi 1 — ${DCI_MATERIALS[1].title}`;
+    document.getElementById('dciHeaderTitle').textContent = 'LKM DIGITAL CASE INVESTIGATION';
+    document.getElementById('dciMaterialHelp').textContent = 'Alur ringkas: 4 tahap · total 30 menit.';
+    restoreSimpleDciDraft();
+    getSimpleDciFields().forEach((field) => {
+      field.addEventListener('input', saveSimpleDciDraft);
+      field.addEventListener('change', saveSimpleDciDraft);
+    });
+    document.getElementById('simple-back').addEventListener('click', () => showSimpleDciStage(Math.max(1, simpleDciStage - 1)));
+    document.getElementById('simple-next').addEventListener('click', () => {
+      if (!validateSimpleDciStage(simpleDciStage)) return;
+      if (simpleDciStage === 4) submitSimpleDci();
+      else showSimpleDciStage(simpleDciStage + 1);
+    });
+    showSimpleDciStage(simpleDciStage);
+  };
+
+  const deactivateSimpleDci = () => {
+    if (!simpleDciActive) return;
+    saveSimpleDciDraft();
+    simpleDciActive = false;
+    simpleDciStepper.classList.add('d-none');
+    simpleDciWorkspace.classList.add('d-none');
+    document.querySelector('.dci-header > .dci-stepper-wrapper').classList.remove('d-none');
+    document.querySelector('.dci-container').classList.remove('d-none');
+    document.getElementById('dciHeaderTitle').textContent = 'DIGITAL CASE INVESTIGATION';
+  };
 
   const renderMaterial = (materialId) => {
     const material = DCI_MATERIALS[materialId];
@@ -614,10 +946,13 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   materialSelect.addEventListener('change', () => {
-    const studentName = document.getElementById('dci-student-name').value;
-    const studentClass = document.getElementById('dci-student-class').value;
     if (activeMaterialId) saveDciDraft(activeMaterialId);
+    if (simpleDciActive) deactivateSimpleDci();
     activeMaterialId = materialSelect.value;
+    if (activeMaterialId === '1') {
+      activateSimpleDci();
+      return;
+    }
     if (activeMaterialId === '6') {
       localStorage.setItem(DCI_STORAGE_KEY, JSON.stringify({
         selectedMaterial: activeMaterialId,
@@ -626,8 +961,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     renderMaterial(activeMaterialId);
     if (activeMaterialId) restoreDciAnswers(dciDrafts[activeMaterialId] || {});
-    if (studentName) document.getElementById('dci-student-name').value = studentName;
-    if (studentClass) document.getElementById('dci-student-class').value = studentClass;
     const savedRoom = Number(dciDrafts[activeMaterialId]?.currentRoom) || 1;
     if (!activeMaterialId) navigateToRoom(1);
     else navigateToRoom(savedRoom);
@@ -782,6 +1115,10 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const saveDciDraft = (materialId = materialSelect.value) => {
+    if (simpleDciActive && materialId === '1') {
+      saveSimpleDciDraft();
+      return;
+    }
     if (!DCI_MATERIALS[materialId]) return;
     dciDrafts[materialId] = {
       ...getDciPayload(materialId),
@@ -819,6 +1156,10 @@ document.addEventListener('DOMContentLoaded', () => {
         dciDrafts[activeMaterialId] = data;
       }
       materialSelect.value = activeMaterialId;
+      if (activeMaterialId === '1') {
+        activateSimpleDci();
+        return;
+      }
       renderMaterial(activeMaterialId);
       restoreDciAnswers(dciDrafts[activeMaterialId]);
       currentRoom = Number(dciDrafts[activeMaterialId]?.currentRoom) || 1;
@@ -829,6 +1170,15 @@ document.addEventListener('DOMContentLoaded', () => {
   loadDciDraft();
 
   document.getElementById('btnResetDci').addEventListener('click', () => {
+    if (simpleDciActive) {
+      if (!confirm('Hapus seluruh jawaban DCI Materi 1 yang tersimpan di perangkat ini?')) return;
+      localStorage.removeItem(SIMPLE_DCI_STORAGE_KEY);
+      delete dciDrafts['1'];
+      simpleDciDraft = {};
+      simpleDciStage = 1;
+      activateSimpleDci();
+      return;
+    }
     if (confirm('Apakah Anda yakin ingin mereset seluruh isian investigasi?')) {
       localStorage.removeItem(DCI_STORAGE_KEY);
       location.reload();
@@ -998,16 +1348,23 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const updateDciHeader = () => {
     const isFlowchart = dciSelect.value === "6";
-    standardStepper.classList.toggle("d-none", isFlowchart);
+    const isSimpleDci = dciSelect.value === "1";
+    const simpleStepper = document.querySelector(".dci-simple-stepper-wrapper");
+    const simpleContainer = document.querySelector(".dci-simple-container");
+    standardStepper.classList.toggle("d-none", isFlowchart || isSimpleDci);
     if (oldContainer) {
       oldContainer.classList.toggle("dci-d-none", isFlowchart);
-      oldContainer.classList.toggle("d-none", isFlowchart);
+      oldContainer.classList.toggle("d-none", isFlowchart || isSimpleDci);
     }
     if (newContainer) newContainer.classList.toggle("d-none", !isFlowchart);
+    if (simpleStepper) simpleStepper.classList.toggle("d-none", !isSimpleDci);
+    if (simpleContainer) simpleContainer.classList.toggle("d-none", !isSimpleDci);
     document.getElementById("dciDraftStatus").classList.toggle("d-none", isFlowchart);
     document.getElementById("btnResetDci").classList.toggle("d-none", isFlowchart);
     headerTitle.textContent = isFlowchart
       ? "DIGITAL CASE INVESTIGATION - FLOWCHART"
+      : isSimpleDci
+        ? "LKM DIGITAL CASE INVESTIGATION"
       : "DIGITAL CASE INVESTIGATION";
   };
 
